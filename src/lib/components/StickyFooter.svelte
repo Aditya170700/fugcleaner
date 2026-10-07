@@ -53,16 +53,15 @@
 
 <style>
   .sticky-footer {
-    position: sticky;
+    position: fixed;
     bottom: 0;
-    left: 0;
+    left: 240px;
     right: 0;
-    margin: 20px -32px -24px -32px;
-    padding: 16px 32px;
+    padding: 14px 36px;
     background-color: var(--bg-card);
     border-top: 1px solid var(--border-color);
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
-    z-index: 50;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    z-index: 40;
     transition: all 0.2s ease;
   }
 
@@ -74,7 +73,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1100px;
+    width: 100%;
+    max-width: 1400px;
     margin: 0 auto;
     gap: 16px;
     flex-wrap: wrap;

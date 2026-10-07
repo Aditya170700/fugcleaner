@@ -111,9 +111,11 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   height: 100vh;
-  padding: 24px 32px;
+  padding: 28px 36px 80px 36px;
   background-color: var(--bg-app);
+  position: relative;
 }
 
 /* Typography & Headings */

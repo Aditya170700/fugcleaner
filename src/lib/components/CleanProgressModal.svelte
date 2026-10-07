@@ -107,7 +107,7 @@
     margin-bottom: 4px;
   }
 
-  .spinner {
+  :global(.spinner) {
     animation: spin 1s linear infinite;
   }
 

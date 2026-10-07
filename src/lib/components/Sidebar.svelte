@@ -78,6 +78,8 @@
     flex-direction: column;
     padding: 20px 16px;
     flex-shrink: 0;
+    position: relative;
+    z-index: 50;
   }
 
   .sidebar-header {

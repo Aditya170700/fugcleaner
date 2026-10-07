@@ -334,8 +334,10 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-width: 1100px;
-    padding-bottom: 24px;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-bottom: 32px;
   }
 
   .page-header {
