@@ -9,7 +9,7 @@
     X,
     ChevronDown,
     ChevronRight,
-    Sparkles,
+    Terminal,
   } from 'lucide-svelte';
 
   interface Props {
@@ -25,6 +25,7 @@
   }: Props = $props();
 
   let showFailedDetails = $state(false);
+  let showCommandOutputs = $state(false);
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && open) {
@@ -52,7 +53,7 @@
       <div class="result-header">
         <div class="icon-avatar" class:dry-run={result.dryRun} class:has-failed={result.failed.length > 0 && result.succeeded.length === 0}>
           {#if result.dryRun}
-            <ShieldCheck size={32} class="text-accent" />
+            <ShieldCheck size={32} />
           {:else if result.failed.length > 0 && result.succeeded.length === 0}
             <AlertCircle size={32} class="text-danger" />
           {:else}
@@ -81,7 +82,7 @@
       <div class="result-body">
         {#if result.dryRun}
           <div class="banner banner-info">
-            <ShieldCheck size={16} class="banner-icon" />
+            <ShieldCheck size={16} />
             <div class="banner-text">
               Laporan simulasi: Tidak ada perubahan fisik yang dilakukan pada file Anda di disk.
             </div>
@@ -100,6 +101,47 @@
             </span>
           </div>
         </div>
+
+        <!-- CLI Command Outputs section -->
+        {#if result.commandOutputs && result.commandOutputs.length > 0}
+          <div class="cmd-section">
+            <button
+              class="btn-cmd-toggle"
+              onclick={() => (showCommandOutputs = !showCommandOutputs)}
+            >
+              <div class="toggle-left">
+                <Terminal size={15} class="text-accent" />
+                <span>Output Perintah CLI ({result.commandOutputs.length})</span>
+              </div>
+              {#if showCommandOutputs}
+                <ChevronDown size={16} />
+              {:else}
+                <ChevronRight size={16} />
+              {/if}
+            </button>
+
+            {#if showCommandOutputs}
+              <div class="cmd-list">
+                {#each result.commandOutputs as cmdOut (cmdOut.id)}
+                  <div class="cmd-card">
+                    <div class="cmd-header">
+                      <code class="cmd-command">$ {cmdOut.command}</code>
+                      <span class="badge" class:badge-safe={cmdOut.success} class:badge-danger={!cmdOut.success}>
+                        {cmdOut.success ? 'Sukses' : 'Gagal'}
+                      </span>
+                    </div>
+                    {#if cmdOut.stdout}
+                      <pre class="cmd-output">{cmdOut.stdout}</pre>
+                    {/if}
+                    {#if cmdOut.stderr}
+                      <pre class="cmd-output cmd-error">{cmdOut.stderr}</pre>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         {#if result.failed.length > 0}
           <div class="failed-section">
@@ -160,7 +202,7 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     width: 100%;
-    max-width: 480px;
+    max-width: 520px;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
     display: flex;
     flex-direction: column;
@@ -234,6 +276,8 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    max-height: 60vh;
+    overflow-y: auto;
   }
 
   .banner {
@@ -249,6 +293,10 @@
     background: rgba(37, 99, 235, 0.08);
     border: 1px solid rgba(37, 99, 235, 0.2);
     color: var(--text-primary);
+  }
+
+  .banner-text {
+    flex: 1;
   }
 
   .stats-grid {
@@ -277,6 +325,77 @@
   .stat-val {
     font-size: 1.05rem;
     font-weight: 700;
+  }
+
+  .cmd-section {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .btn-cmd-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg-hover);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    width: 100%;
+    text-align: left;
+  }
+
+  .cmd-list {
+    padding: 10px;
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .cmd-card {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-family: monospace;
+    font-size: 0.75rem;
+  }
+
+  .cmd-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 4px;
+  }
+
+  .cmd-command {
+    color: #38bdf8;
+    font-weight: 600;
+  }
+
+  .cmd-output {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 100px;
+    overflow-y: auto;
+    color: #94a3b8;
+  }
+
+  .cmd-error {
+    color: #f87171;
   }
 
   .failed-section {

@@ -135,18 +135,18 @@
 
 ## M5 — Kategori Berbasis Command
 
-- [ ] Modul runner command: jalankan CLI via `std::process::Command`, timeout, tangkap stdout/stderr
-- [ ] `pnpm store prune`
-- [ ] `brew cleanup --prune=all` (path cache dari `brew --cache`)
-- [ ] `xcrun simctl delete unavailable`
-- [ ] `docker system prune -f` (**tanpa** `-a` dan `--volumes`); cek daemon berjalan dulu
-- [ ] Estimasi ukuran sebelum (jika bisa) dan ukuran yang dibebaskan setelahnya (ukur ulang path)
-- [ ] Tampilkan output CLI di panel hasil (bisa di-expand)
-- [ ] Hormati dry-run: tampilkan command yang *akan* dijalankan tanpa mengeksekusinya
+- [x] Modul runner command: jalankan CLI via `std::process::Command`, timeout, tangkap stdout/stderr
+- [x] `pnpm store prune`
+- [x] `brew cleanup --prune=all` (path cache dari `brew --cache`)
+- [x] `xcrun simctl delete unavailable`
+- [x] `docker system prune -f` (**tanpa** `-a` dan `--volumes`); cek daemon berjalan dulu
+- [x] Estimasi ukuran sebelum (jika bisa) dan ukuran yang dibebaskan setelahnya (ukur ulang path)
+- [x] Tampilkan output CLI di panel hasil (bisa di-expand)
+- [x] Hormati dry-run: tampilkan command yang *akan* dijalankan tanpa mengeksekusinya
 
 **Verifikasi:**
-- [ ] Setiap kategori command tersembunyi/nonaktif jika CLI tidak ada
-- [ ] Docker mati → pesan "Docker tidak berjalan", tidak crash
+- [x] Setiap kategori command tersembunyi/nonaktif jika CLI tidak ada
+- [x] Docker mati → pesan "Docker tidak berjalan", tidak crash
 
 ---
 

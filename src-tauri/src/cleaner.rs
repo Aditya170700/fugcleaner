@@ -7,6 +7,7 @@ use tauri::{AppHandle, Emitter, Runtime};
 use crate::categories::Method;
 use crate::safety;
 use crate::scanner::global::ScannedItemInternal;
+use crate::scanner::size::DiskSizeCalculator;
 use crate::settings::Settings;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,10 +19,21 @@ pub struct CleanFailedItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CommandOutput {
+    pub id: String,
+    pub command: String,
+    pub stdout: String,
+    pub stderr: String,
+    pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CleanResult {
     pub freed_bytes: u64,
     pub succeeded: Vec<String>,
     pub failed: Vec<CleanFailedItem>,
+    pub command_outputs: Vec<CommandOutput>,
     pub dry_run: bool,
 }
 
@@ -45,6 +57,7 @@ pub fn clean_items_core<R: Runtime>(
     let mut freed_bytes: u64 = 0;
     let mut succeeded: Vec<String> = Vec::new();
     let mut failed: Vec<CleanFailedItem> = Vec::new();
+    let mut command_outputs: Vec<CommandOutput> = Vec::new();
     let total_items = item_ids.len();
 
     let mut last_progress_emit = Instant::now() - Duration::from_millis(500);
@@ -80,22 +93,63 @@ pub fn clean_items_core<R: Runtime>(
         if internal.method == Method::Command {
             if let Some(ref cmd_str) = internal.command {
                 if dry_run {
+                    command_outputs.push(CommandOutput {
+                        id: id.clone(),
+                        command: cmd_str.clone(),
+                        stdout: format!(
+                            "[DRY RUN] Perintah yang akan dieksekusi: {}\nTidak ada perubahan yang dilakukan pada sistem.",
+                            cmd_str
+                        ),
+                        stderr: String::new(),
+                        success: true,
+                    });
                     succeeded.push(id.clone());
                     freed_bytes += internal.item.bytes;
                     continue;
                 }
 
-                match execute_clean_command(cmd_str) {
-                    Ok(_) => {
-                        succeeded.push(id.clone());
-                        freed_bytes += internal.item.bytes;
-                    }
-                    Err(e) => {
-                        failed.push(CleanFailedItem {
-                            id: id.clone(),
-                            error: format!("Gagal menjalankan perintah '{}': {}", cmd_str, e),
-                        });
-                    }
+                // Measure size before running command if path is available
+                let size_before = if !internal.real_path.as_os_str().is_empty() && internal.real_path.exists() {
+                    let mut calc = DiskSizeCalculator::new();
+                    calc.calculate_path_size(&internal.real_path, None)
+                } else {
+                    internal.item.bytes
+                };
+
+                // Execute with 60s timeout
+                let out = execute_clean_command_with_timeout(id, cmd_str, 60);
+                if out.success {
+                    let size_after = if !internal.real_path.as_os_str().is_empty() && internal.real_path.exists() {
+                        let mut calc = DiskSizeCalculator::new();
+                        calc.calculate_path_size(&internal.real_path, None)
+                    } else {
+                        0
+                    };
+
+                    let actual_freed = if size_before > size_after {
+                        size_before - size_after
+                    } else if internal.item.bytes > 0 {
+                        internal.item.bytes
+                    } else {
+                        0
+                    };
+
+                    freed_bytes += actual_freed;
+                    succeeded.push(id.clone());
+                    command_outputs.push(out);
+                } else {
+                    let err_msg = if !out.stderr.is_empty() {
+                        out.stderr.clone()
+                    } else if !out.stdout.is_empty() {
+                        out.stdout.clone()
+                    } else {
+                        format!("Perintah gagal dijalankan: {}", cmd_str)
+                    };
+                    failed.push(CleanFailedItem {
+                        id: id.clone(),
+                        error: format!("Gagal menjalankan perintah '{}': {}", cmd_str, err_msg),
+                    });
+                    command_outputs.push(out);
                 }
                 continue;
             } else {
@@ -219,6 +273,7 @@ pub fn clean_items_core<R: Runtime>(
         freed_bytes,
         succeeded: succeeded.clone(),
         failed,
+        command_outputs,
         dry_run,
     };
 
@@ -240,8 +295,12 @@ fn is_path_in_exclude_list(path: &Path, exclude_paths: &[String]) -> bool {
     false
 }
 
-/// Helper to execute shell command safely
-fn execute_clean_command(cmd_str: &str) -> Result<(), String> {
+/// Helper to execute shell command safely with timeout and output capture
+pub fn execute_clean_command_with_timeout(
+    id: &str,
+    cmd_str: &str,
+    timeout_secs: u64,
+) -> CommandOutput {
     #[cfg(target_os = "windows")]
     let mut cmd = std::process::Command::new("cmd");
     #[cfg(target_os = "windows")]
@@ -252,16 +311,72 @@ fn execute_clean_command(cmd_str: &str) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     cmd.args(["-c", cmd_str]);
 
-    let output = cmd.output().map_err(|e| e.to_string())?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        let err = String::from_utf8_lossy(&output.stderr);
-        Err(if err.trim().is_empty() {
-            format!("Perintah gagal dengan kode status {:?}", output.status.code())
-        } else {
-            err.trim().to_string()
-        })
+    let mut child = match cmd
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return CommandOutput {
+                id: id.to_string(),
+                command: cmd_str.to_string(),
+                stdout: String::new(),
+                stderr: e.to_string(),
+                success: false,
+            };
+        }
+    };
+
+    let start = Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let mut stdout_buf = String::new();
+                let mut stderr_buf = String::new();
+                if let Some(mut stdout) = child.stdout.take() {
+                    use std::io::Read;
+                    let _ = stdout.read_to_string(&mut stdout_buf);
+                }
+                if let Some(mut stderr) = child.stderr.take() {
+                    use std::io::Read;
+                    let _ = stderr.read_to_string(&mut stderr_buf);
+                }
+
+                let success = status.success();
+                return CommandOutput {
+                    id: id.to_string(),
+                    command: cmd_str.to_string(),
+                    stdout: stdout_buf.trim().to_string(),
+                    stderr: stderr_buf.trim().to_string(),
+                    success,
+                };
+            }
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    return CommandOutput {
+                        id: id.to_string(),
+                        command: cmd_str.to_string(),
+                        stdout: String::new(),
+                        stderr: format!("Proses timeout setelah {} detik.", timeout_secs),
+                        success: false,
+                    };
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => {
+                return CommandOutput {
+                    id: id.to_string(),
+                    command: cmd_str.to_string(),
+                    stdout: String::new(),
+                    stderr: e.to_string(),
+                    success: false,
+                };
+            }
+        }
     }
 }
 
@@ -337,7 +452,6 @@ mod tests {
 
         let settings = Settings::default();
 
-        // Run with dry_run = true
         let (result, succeeded) = clean_items_core::<tauri::Wry>(
             None,
             &["item_1".to_string()],
@@ -351,7 +465,6 @@ mod tests {
         assert_eq!(result.freed_bytes, 1024);
         assert!(result.dry_run);
 
-        // Verify folder still exists on disk
         assert!(target_dir.exists(), "Folder must still exist during dry-run");
     }
 
@@ -375,7 +488,6 @@ mod tests {
 
         let settings = Settings::default();
 
-        // Run with dry_run = false
         let (result, succeeded) = clean_items_core::<tauri::Wry>(
             None,
             &["item_2".to_string()],
@@ -389,8 +501,57 @@ mod tests {
         assert_eq!(result.freed_bytes, 2048);
         assert!(!result.dry_run);
 
-        // Verify folder is deleted from disk
         assert!(!target_dir.exists(), "Folder must be deleted on disk");
+    }
+
+    #[test]
+    fn test_command_execution_and_dry_run() {
+        let mut items = HashMap::new();
+        let item = ScannedItemInternal {
+            item: ScanItem {
+                id: "cmd_test".to_string(),
+                category_id: "cmd_test".to_string(),
+                path: "Command: echo 'cleaning'".to_string(),
+                bytes: 512,
+                project_name: None,
+                last_activity: None,
+                stale: None,
+                note: None,
+            },
+            real_path: PathBuf::new(),
+            allowed_root: None,
+            method: Method::Command,
+            command: Some("echo 'cleaning'".to_string()),
+        };
+        items.insert("cmd_test".to_string(), item);
+
+        let settings = Settings::default();
+
+        // 1. Dry run command
+        let (dry_res, dry_succ) = clean_items_core::<tauri::Wry>(
+            None,
+            &["cmd_test".to_string()],
+            &items,
+            &settings,
+            true,
+        );
+        assert_eq!(dry_res.succeeded.len(), 1);
+        assert_eq!(dry_succ.len(), 1);
+        assert_eq!(dry_res.command_outputs.len(), 1);
+        assert!(dry_res.command_outputs[0].stdout.contains("[DRY RUN]"));
+
+        // 2. Live run command
+        let (live_res, live_succ) = clean_items_core::<tauri::Wry>(
+            None,
+            &["cmd_test".to_string()],
+            &items,
+            &settings,
+            false,
+        );
+        assert_eq!(live_res.succeeded.len(), 1);
+        assert_eq!(live_succ.len(), 1);
+        assert_eq!(live_res.command_outputs.len(), 1);
+        assert_eq!(live_res.command_outputs[0].stdout, "cleaning");
     }
 
     #[test]
@@ -471,7 +632,6 @@ mod tests {
         fs::create_dir_all(&valid_dir).unwrap();
 
         let mut items = HashMap::new();
-        // Item 1 is non-existent
         let item1 = create_dummy_scanned_item(
             "bad_item",
             root.join("non_existent"),
@@ -479,7 +639,6 @@ mod tests {
             Method::Delete,
             100,
         );
-        // Item 2 is valid
         let item2 = create_dummy_scanned_item(
             "good_item",
             valid_dir.clone(),

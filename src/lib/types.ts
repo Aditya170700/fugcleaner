@@ -57,10 +57,19 @@ export interface CleanFailedItem {
   error: string;
 }
 
+export interface CommandOutput {
+  id: string;
+  command: string;
+  stdout: string;
+  stderr: string;
+  success: boolean;
+}
+
 export interface CleanResult {
   freedBytes: number;
   succeeded: string[];
   failed: CleanFailedItem[];
+  commandOutputs?: CommandOutput[];
   dryRun: boolean;
 }
 

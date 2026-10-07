@@ -119,6 +119,23 @@ fn check_category_availability(def: &CategoryDef) -> (bool, Option<String>) {
             );
         }
 
+        // Special check for xcrun simulator CLI on macOS
+        #[cfg(target_os = "macos")]
+        if cli == "xcrun" {
+            let simctl_check = std::process::Command::new("xcrun")
+                .args(["-find", "simctl"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            if !simctl_check.map(|s| s.success()).unwrap_or(false) {
+                return (
+                    false,
+                    Some("Xcode simulator CLI (simctl) tidak ditemukan di sistem.".to_string()),
+                );
+            }
+        }
+
         // Special check for docker daemon if CLI exists
         if cli == "docker" {
             let docker_check = std::process::Command::new("docker")
@@ -128,7 +145,10 @@ fn check_category_availability(def: &CategoryDef) -> (bool, Option<String>) {
                 .status();
 
             if !docker_check.map(|s| s.success()).unwrap_or(false) {
-                return (false, Some("Docker daemon tidak sedang berjalan.".to_string()));
+                return (
+                    false,
+                    Some("Docker daemon tidak sedang berjalan.".to_string()),
+                );
             }
         }
     }
