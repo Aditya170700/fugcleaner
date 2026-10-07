@@ -59,6 +59,15 @@ export const api = {
     return invoke<HistoryEntry[]>('get_history');
   },
 
+  async clearHistory(): Promise<void> {
+    return invoke<void>('clear_history_entries');
+  },
+
+  // Privacy Settings (macOS Full Disk Access)
+  async openPrivacySettings(): Promise<void> {
+    return invoke<void>('open_privacy_settings');
+  },
+
   // Open in file manager
   async openInFileManager(itemId: string): Promise<void> {
     return invoke<void>('open_in_file_manager', { itemId });

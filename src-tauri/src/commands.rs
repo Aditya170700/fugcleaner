@@ -8,6 +8,7 @@ use tauri::{AppHandle, State};
 use crate::categories::{list_available_categories, Category};
 use crate::cleaner::{clean_items_core, CleanResult};
 use crate::error::{AppError, AppResult};
+use crate::history::{append_history_entry, clear_history, load_history, HistoryCleanedItem, HistoryEntry};
 use crate::scanner::global::scan_global_caches;
 use crate::scanner::projects::{scan_projects_in_roots, ProjectScannerOptions, ScannedProject};
 use crate::scanner::ScanItem;
@@ -197,11 +198,12 @@ pub async fn clean_items(
     };
 
     let app_handle_clone = app_handle.clone();
+    let scanned_items_clone = scanned_items_map.clone();
     let (result, succeeded_ids) = tokio::task::spawn_blocking(move || {
         clean_items_core(
             Some(&app_handle_clone),
             &item_ids,
-            &scanned_items_map,
+            &scanned_items_clone,
             &settings,
             dry_run,
         )
@@ -217,7 +219,61 @@ pub async fn clean_items(
         }
     }
 
+    // Record in persistent history if any item succeeded
+    if !result.succeeded.is_empty() {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let mut cleaned_items = Vec::new();
+        for id in &result.succeeded {
+            if let Some(internal) = scanned_items_map.get(id) {
+                cleaned_items.push(HistoryCleanedItem {
+                    category_id: internal.item.category_id.clone(),
+                    path: internal.item.path.clone(),
+                    bytes: internal.item.bytes,
+                });
+            }
+        }
+
+        let history_entry = HistoryEntry {
+            id: format!("hist-{}", now_ms),
+            timestamp: now_ms,
+            freed_bytes: result.freed_bytes,
+            item_count: result.succeeded.len(),
+            dry_run: result.dry_run,
+            items: cleaned_items,
+        };
+
+        let _ = append_history_entry(history_entry);
+    }
+
     Ok(result)
+}
+
+#[tauri::command]
+pub fn get_history() -> Vec<HistoryEntry> {
+    load_history()
+}
+
+#[tauri::command]
+pub fn clear_history_entries() -> AppResult<()> {
+    clear_history()
+}
+
+#[tauri::command]
+pub fn open_privacy_settings() -> AppResult<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let url = "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
+        let _ = tauri_plugin_opener::open_url(url, None::<&str>);
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
 }
 
 #[tauri::command]

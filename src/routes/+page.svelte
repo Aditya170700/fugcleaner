@@ -345,6 +345,9 @@
         <h4>{id.fullDiskAccess.bannerTitle}</h4>
         <p>{id.fullDiskAccess.bannerDesc}</p>
       </div>
+      <button class="btn btn-outline fda-btn" onclick={() => api.openPrivacySettings()}>
+        {id.fullDiskAccess.openSettingsButton}
+      </button>
     </div>
   {/if}
 
@@ -497,6 +500,18 @@
   .fda-banner-content p {
     font-size: 0.8rem;
     color: var(--text-secondary);
+  }
+
+  .fda-btn {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    border-color: rgba(245, 158, 11, 0.4);
+    color: var(--text-primary);
+  }
+
+  .fda-btn:hover {
+    background-color: rgba(245, 158, 11, 0.15);
   }
 
   .section {

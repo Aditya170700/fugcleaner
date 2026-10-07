@@ -44,6 +44,9 @@ pub fn run() {
             commands::scan_projects,
             commands::cancel_scan,
             commands::clean_items,
+            commands::get_history,
+            commands::clear_history_entries,
+            commands::open_privacy_settings,
             commands::open_in_file_manager,
         ])
         .run(tauri::generate_context!())

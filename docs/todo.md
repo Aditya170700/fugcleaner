@@ -153,23 +153,23 @@
 ## M6 — Settings, History, Full Disk Access
 
 ### Settings
-- [ ] `settings.rs`: simpan JSON di app config dir (`get_settings` / `save_settings`)
-- [ ] Field: root folder project, threshold stale, kategori aktif, exclude list, kedalaman scan, dry-run
-- [ ] Exclude list ikut divalidasi di scanner **dan** cleaner
-- [ ] Halaman Settings dengan form + validasi
+- [x] `settings.rs`: simpan JSON di app config dir (`get_settings` / `save_settings`)
+- [x] Field: root folder project, threshold stale, kategori aktif, exclude list, kedalaman scan, dry-run
+- [x] Exclude list ikut divalidasi di scanner **dan** cleaner
+- [x] Halaman Settings dengan form + validasi
 
 ### History
-- [ ] `history.rs`: append entri setiap clean (waktu, total dibebaskan, item, dry-run atau tidak)
-- [ ] Halaman History: daftar entri + total kumulatif yang sudah dibersihkan
+- [x] `history.rs`: append entri setiap clean (waktu, total dibebaskan, item, dry-run atau tidak)
+- [x] Halaman History: daftar entri + total kumulatif yang sudah dibersihkan
 
 ### Full Disk Access (macOS, §10)
-- [ ] `check_full_disk_access`: coba baca `~/Library/Safari`
-- [ ] Banner + tombol buka System Settings (`x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles`) via `tauri-plugin-opener`
-- [ ] Kategori yang gagal dipindai karena izin ditandai "butuh izin"
+- [x] `check_full_disk_access`: coba baca `~/Library/Safari`
+- [x] Banner + tombol buka System Settings (`x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles`) via `tauri-plugin-opener`
+- [x] Kategori yang gagal dipindai karena izin ditandai "butuh izin"
 
 **Verifikasi:**
-- [ ] Settings tersimpan setelah app ditutup & dibuka lagi
-- [ ] Banner muncul/hilang sesuai status izin
+- [x] Settings tersimpan setelah app ditutup & dibuka lagi
+- [x] Banner muncul/hilang sesuai status izin
 
 ---
 
