@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use sysinfo::Disks;
@@ -7,7 +8,9 @@ use tauri::{AppHandle, State};
 use crate::categories::{list_available_categories, Category};
 use crate::error::{AppError, AppResult};
 use crate::scanner::global::scan_global_caches;
+use crate::scanner::projects::{scan_projects_in_roots, ProjectScannerOptions, ScannedProject};
 use crate::scanner::ScanItem;
+use crate::settings::{load_settings, save_settings_to_disk, Settings};
 use crate::AppState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +64,17 @@ pub fn list_categories() -> Vec<Category> {
 }
 
 #[tauri::command]
+pub fn get_settings() -> Settings {
+    load_settings()
+}
+
+#[tauri::command]
+pub fn save_settings(settings: Settings) -> AppResult<Settings> {
+    save_settings_to_disk(&settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
 pub async fn scan_global(
     app_handle: AppHandle,
     state: State<'_, AppState>,
@@ -68,7 +82,6 @@ pub async fn scan_global(
 ) -> AppResult<Vec<ScanItem>> {
     let cancel_flag = Arc::new(AtomicBool::new(false));
 
-    // Register cancel flag in AppState
     {
         let mut active_scans = state.active_scan_cancel.lock().unwrap();
         active_scans.insert(scan_id.clone(), cancel_flag.clone());
@@ -78,14 +91,12 @@ pub async fn scan_global(
     let scan_id_clone = scan_id.clone();
     let cancel_flag_clone = cancel_flag.clone();
 
-    // Run heavy scanning on a blocking thread
     let result = tokio::task::spawn_blocking(move || {
         scan_global_caches(&app_handle_clone, &scan_id_clone, cancel_flag_clone)
     })
     .await
     .map_err(|e| AppError::Scan(format!("Task spawn blocking error: {}", e)))?;
 
-    // Cleanup cancel flag
     {
         let mut active_scans = state.active_scan_cancel.lock().unwrap();
         active_scans.remove(&scan_id);
@@ -93,7 +104,6 @@ pub async fn scan_global(
 
     let scanned_items = result?;
 
-    // Store items in AppState managed state
     let mut frontend_items = Vec::new();
     {
         let mut state_items = state.scanned_items.lock().unwrap();
@@ -104,6 +114,63 @@ pub async fn scan_global(
     }
 
     Ok(frontend_items)
+}
+
+#[tauri::command]
+pub async fn scan_projects(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    scan_id: String,
+    roots: Vec<String>,
+) -> AppResult<Vec<ScannedProject>> {
+    let settings = load_settings();
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+
+    {
+        let mut active_scans = state.active_scan_cancel.lock().unwrap();
+        active_scans.insert(scan_id.clone(), cancel_flag.clone());
+    }
+
+    let roots_paths: Vec<PathBuf> = if roots.is_empty() {
+        settings.project_roots.iter().map(PathBuf::from).collect()
+    } else {
+        roots.iter().map(PathBuf::from).collect()
+    };
+
+    let exclude_paths: Vec<PathBuf> = settings.exclude_paths.iter().map(PathBuf::from).collect();
+
+    let options = ProjectScannerOptions {
+        roots: roots_paths,
+        stale_threshold_days: settings.stale_threshold_days,
+        max_depth: settings.max_scan_depth,
+        exclude_paths,
+    };
+
+    let app_handle_clone = app_handle.clone();
+    let scan_id_clone = scan_id.clone();
+    let cancel_flag_clone = cancel_flag.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        scan_projects_in_roots(&app_handle_clone, &scan_id_clone, options, cancel_flag_clone)
+    })
+    .await
+    .map_err(|e| AppError::Scan(format!("Task spawn blocking error: {}", e)))?;
+
+    {
+        let mut active_scans = state.active_scan_cancel.lock().unwrap();
+        active_scans.remove(&scan_id);
+    }
+
+    let (projects, scanned_items) = result?;
+
+    {
+        let mut state_items = state.scanned_items.lock().unwrap();
+        for internal in scanned_items {
+            state_items.insert(internal.item.id.clone(), internal);
+        }
+    }
+
+    Ok(projects)
 }
 
 #[tauri::command]
@@ -153,7 +220,11 @@ mod tests {
     }
 
     #[test]
-    fn test_check_full_disk_access() {
-        let _ = check_full_disk_access();
+    fn test_settings_load_save() {
+        let mut settings = load_settings();
+        settings.stale_threshold_days = 45;
+        let saved = save_settings(settings.clone());
+        assert!(saved.is_ok());
+        assert_eq!(load_settings().stale_threshold_days, 45);
     }
 }

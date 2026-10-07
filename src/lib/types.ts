@@ -30,6 +30,28 @@ export interface ScanItem {
   note?: string;
 }
 
+export interface ProjectArtifact {
+  id: string;
+  categoryId: string;
+  name: string;
+  path: string;
+  bytes: number;
+  risk: Risk;
+  method: Method;
+  note?: string;
+}
+
+export interface ScannedProject {
+  id: string;
+  name: string;
+  path: string;
+  projectType: string;
+  lastActivity: number;
+  stale: boolean;
+  totalBytes: number;
+  artifacts: ProjectArtifact[];
+}
+
 export interface CleanFailedItem {
   id: string;
   error: string;

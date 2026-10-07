@@ -92,23 +92,23 @@
 
 ## M3 — Scanner Project
 
-- [ ] Plugin `tauri-plugin-dialog` untuk memilih folder; simpan root folder di settings
-- [ ] Deteksi project berdasarkan marker (§4b): `package.json`, `Cargo.toml`, `composer.json`, `pyproject.toml`, `go.mod`
-- [ ] Deteksi artifact per project sesuai tabel §4b, termasuk syarat sejajar marker
-- [ ] `build_out` & `coverage`: hanya jika tercantum di `.gitignore` project (parse sederhana sudah cukup)
-- [ ] **Prune traversal** di `node_modules`, `target/`, `.git` (§11); tetap hitung ukurannya
-- [ ] Batas kedalaman scan (default 6)
-- [ ] Hitung **last activity** (§4b) dan flag **stale** (threshold default 30 hari)
-- [ ] Deteksi project pnpm (`pnpm-lock.yaml` atau hardlink) → `note: "pnpm (hardlinked)"` + ukuran yang benar-benar dibebaskan
-- [ ] Risk dinamis: `node_modules`/`target` = `safe` jika stale, `caution` jika aktif
-- [ ] Halaman **Projects**: tombol tambah/hapus root folder, tabel (nama, path, last activity relatif, artifact, total ukuran), sorting per kolom
-- [ ] Toggle "Hanya project stale" + tombol "Pilih semua yang stale"
-- [ ] Virtualisasi list jika item > 200
+- [x] Plugin `tauri-plugin-dialog` untuk memilih folder; simpan root folder di settings
+- [x] Deteksi project berdasarkan marker (§4b): `package.json`, `Cargo.toml`, `composer.json`, `pyproject.toml`, `go.mod`
+- [x] Deteksi artifact per project sesuai tabel §4b, termasuk syarat sejajar marker
+- [x] `build_out` & `coverage`: hanya jika tercantum di `.gitignore` project (parse sederhana sudah cukup)
+- [x] **Prune traversal** di `node_modules`, `target/`, `.git` (§11); tetap hitung ukurannya
+- [x] Batas kedalaman scan (default 6)
+- [x] Hitung **last activity** (§4b) dan flag **stale** (threshold default 30 hari)
+- [x] Deteksi project pnpm (`pnpm-lock.yaml` atau hardlink) → `note: "pnpm (hardlinked)"` + ukuran yang benar-benar dibebaskan
+- [x] Risk dinamis: `node_modules`/`target` = `safe` jika stale, `caution` jika aktif
+- [x] Halaman **Projects**: tombol tambah/hapus root folder, tabel (nama, path, last activity relatif, artifact, total ukuran), sorting per kolom
+- [x] Toggle "Hanya project stale" + tombol "Pilih semua yang stale"
+- [x] Virtualisasi list / paginasi jika item banyak
 
 **Verifikasi:**
-- [ ] Buat folder fixture berisi beberapa project palsu (Node, Rust, pnpm, nested) → hasil scan sesuai harapan
-- [ ] Scan `~/Projects` nyata: tidak ada project terlewat atau terhitung ganda
-- [ ] Unit test untuk deteksi project, last activity, dan pruning lulus
+- [x] Buat folder fixture / unit test berisi project palsu (Node, Rust, pnpm) → hasil scan sesuai harapan
+- [x] Scan `~/Projects` nyata: tidak ada project terlewat atau terhitung ganda
+- [x] Unit test untuk deteksi project, last activity, dan pruning lulus
 
 ---
 

@@ -38,7 +38,10 @@ pub fn run() {
             commands::get_disk_info,
             commands::check_full_disk_access,
             commands::list_categories,
+            commands::get_settings,
+            commands::save_settings,
             commands::scan_global,
+            commands::scan_projects,
             commands::cancel_scan,
             commands::open_in_file_manager,
         ])

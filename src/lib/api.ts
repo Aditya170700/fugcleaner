@@ -4,6 +4,7 @@ import type {
   DiskInfo,
   Category,
   ScanItem,
+  ScannedProject,
   CleanResult,
   ScanProgress,
   CleanProgress,
@@ -31,8 +32,8 @@ export const api = {
     return invoke<ScanItem[]>('scan_global', { scanId });
   },
 
-  async scanProjects(scanId: string, roots: string[]): Promise<ScanItem[]> {
-    return invoke<ScanItem[]>('scan_projects', { scanId, roots });
+  async scanProjects(scanId: string, roots: string[] = []): Promise<ScannedProject[]> {
+    return invoke<ScannedProject[]>('scan_projects', { scanId, roots });
   },
 
   async cancelScan(scanId: string): Promise<void> {

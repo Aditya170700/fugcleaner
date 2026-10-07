@@ -1,18 +1,48 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { api } from '$lib/api';
+  import type { Settings } from '$lib/types';
   import { id } from '$lib/i18n/id';
-  import { Settings, Shield, Sliders, Save, Check } from 'lucide-svelte';
+  import { Shield, Sliders, Save, Check, Folder } from 'lucide-svelte';
 
-  let dryRun = $state(true);
-  let staleDays = $state(30);
-  let scanDepth = $state(6);
+  let currentSettings = $state<Settings>({
+    projectRoots: [],
+    staleThresholdDays: 30,
+    enabledCategories: [],
+    excludePaths: [],
+    maxScanDepth: 6,
+    dryRun: true,
+  });
+
   let saved = $state(false);
+  let saving = $state(false);
 
-  function handleSave() {
-    saved = true;
-    setTimeout(() => {
-      saved = false;
-    }, 2000);
+  async function loadSettings() {
+    try {
+      currentSettings = await api.getSettings();
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
   }
+
+  async function handleSave() {
+    saving = true;
+    try {
+      await api.saveSettings(currentSettings);
+      saved = true;
+      setTimeout(() => {
+        saved = false;
+      }, 2000);
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+    } finally {
+      saving = false;
+    }
+  }
+
+  onMount(() => {
+    loadSettings();
+  });
 </script>
 
 <div class="settings-page">
@@ -22,13 +52,13 @@
       <p class="page-subtitle">{id.settings.subtitle}</p>
     </div>
 
-    <button class="btn btn-primary" onclick={handleSave}>
+    <button class="btn btn-primary" onclick={handleSave} disabled={saving}>
       {#if saved}
         <Check size={16} />
         <span>{id.settings.savedToast}</span>
       {:else}
         <Save size={16} />
-        <span>{id.settings.saveButton}</span>
+        <span>{saving ? 'Menyimpan...' : id.settings.saveButton}</span>
       {/if}
     </button>
   </header>
@@ -55,7 +85,7 @@
           id="dry-run-toggle"
           type="checkbox"
           class="toggle-input"
-          bind:checked={dryRun}
+          bind:checked={currentSettings.dryRun}
         />
       </div>
     </section>
@@ -84,7 +114,7 @@
             min="1"
             max="365"
             class="number-input"
-            bind:value={staleDays}
+            bind:value={currentSettings.staleThresholdDays}
           />
           <span class="unit-label">hari</span>
         </div>
@@ -102,7 +132,7 @@
             min="1"
             max="20"
             class="number-input"
-            bind:value={scanDepth}
+            bind:value={currentSettings.maxScanDepth}
           />
           <span class="unit-label">level</span>
         </div>
@@ -117,6 +147,7 @@
     flex-direction: column;
     gap: 24px;
     max-width: 1100px;
+    padding-bottom: 24px;
   }
 
   .page-header {
