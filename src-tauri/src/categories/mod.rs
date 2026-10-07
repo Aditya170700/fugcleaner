@@ -55,12 +55,44 @@ pub struct CategoryDef {
     pub split_subfolders: bool,
 }
 
-/// Expand `~` in path pattern to user's home directory
+/// Expand `~` and Windows environment variables (e.g. `%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%`, `%TEMP%`)
 pub fn expand_tilde(pattern: &str) -> Option<PathBuf> {
-    if pattern.starts_with("~/") {
+    if pattern.starts_with("~/") || pattern.starts_with("~\\") {
         dirs::home_dir().map(|home| home.join(&pattern[2..]))
     } else if pattern == "~" {
         dirs::home_dir()
+    } else if let Some(stripped) = pattern.strip_prefix('%') {
+        if let Some(end_idx) = stripped.find('%') {
+            let var_name = &stripped[..end_idx];
+            let remainder = &stripped[end_idx + 1..];
+            let clean_remainder = remainder.trim_start_matches(['/', '\\']);
+
+            let base_dir = match var_name.to_ascii_uppercase().as_str() {
+                "LOCALAPPDATA" => {
+                    dirs::data_local_dir().or_else(|| std::env::var_os("LOCALAPPDATA").map(PathBuf::from))
+                }
+                "APPDATA" => {
+                    dirs::config_dir().or_else(|| std::env::var_os("APPDATA").map(PathBuf::from))
+                }
+                "USERPROFILE" => {
+                    dirs::home_dir().or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+                }
+                "TEMP" | "TMP" => Some(std::env::temp_dir()),
+                _ => std::env::var_os(var_name).map(PathBuf::from),
+            };
+
+            if let Some(base) = base_dir {
+                if clean_remainder.is_empty() {
+                    Some(base)
+                } else {
+                    Some(base.join(clean_remainder))
+                }
+            } else {
+                None
+            }
+        } else {
+            Some(PathBuf::from(pattern))
+        }
     } else {
         Some(PathBuf::from(pattern))
     }
@@ -174,4 +206,39 @@ fn check_category_availability(def: &CategoryDef) -> (bool, Option<String>) {
     }
 
     (true, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_expand_tilde_unix_and_windows() {
+        if let Some(home) = dirs::home_dir() {
+            let exp_home = expand_tilde("~").unwrap();
+            assert_eq!(exp_home, home);
+
+            let exp_npm = expand_tilde("~/.npm/_cacache").unwrap();
+            assert_eq!(exp_npm, home.join(".npm/_cacache"));
+        }
+
+        // Test Windows environment variable expansion
+        let exp_temp = expand_tilde("%TEMP%\\sample").unwrap();
+        assert!(exp_temp.ends_with("sample"));
+    }
+
+    #[test]
+    fn test_linux_and_windows_definitions() {
+        let linux_cats = linux::get_linux_categories();
+        assert!(!linux_cats.is_empty(), "Linux categories must be defined");
+        assert!(linux_cats.iter().any(|c| c.id == "npm_cache"));
+        assert!(linux_cats.iter().any(|c| c.id == "pnpm_store"));
+        assert!(linux_cats.iter().any(|c| c.id == "vscode_cache"));
+
+        let win_cats = windows::get_windows_categories();
+        assert!(!win_cats.is_empty(), "Windows categories must be defined");
+        assert!(win_cats.iter().any(|c| c.id == "npm_cache"));
+        assert!(win_cats.iter().any(|c| c.id == "pnpm_store"));
+        assert!(win_cats.iter().any(|c| c.id == "vscode_cache"));
+    }
 }

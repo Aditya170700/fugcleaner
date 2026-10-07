@@ -13,6 +13,9 @@
 
   let { category, items, onClose }: Props = $props();
 
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent);
+  const fileManagerLabel = isMac ? 'Finder' : 'Folder';
+
   const totalBytes = $derived(items.reduce((acc, item) => acc + item.bytes, 0));
 
   async function handleOpenInFinder(itemId: string) {
@@ -79,10 +82,10 @@
                 <button
                   class="btn btn-outline btn-finder"
                   onclick={() => handleOpenInFinder(item.id)}
-                  title={id.dashboard.showInFinder}
+                  title={isMac ? id.dashboard.showInFinder : 'Buka di Folder'}
                 >
                   <ExternalLink size={14} />
-                  <span>Finder</span>
+                  <span>{fileManagerLabel}</span>
                 </button>
               {/if}
             </div>

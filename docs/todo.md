@@ -175,17 +175,17 @@
 
 ## M7 — Cross-Platform
 
-- [ ] Lengkapi path kategori **Linux** (§4a)
-- [ ] Lengkapi path kategori **Windows** (§4a), termasuk hard-deny list Windows
-- [ ] Sembunyikan kategori khusus macOS (Xcode, simulator, Full Disk Access) di OS lain
-- [ ] Ukuran di Windows pakai `len()` (`#[cfg(windows)]`)
-- [ ] "Show in Finder" → "Show in Explorer"/"Show in Files" sesuai OS
-- [ ] GitHub Actions dengan `tauri-action`: build macOS (Apple Silicon), Windows, Linux
-- [ ] Jalankan unit test di ketiga OS di CI
+- [x] Lengkapi path kategori **Linux** (§4a)
+- [x] Lengkapi path kategori **Windows** (§4a), termasuk hard-deny list Windows
+- [x] Sembunyikan kategori khusus macOS (Xcode, simulator, Full Disk Access) di OS lain
+- [x] Ukuran di Windows pakai `len()` (`#[cfg(windows)]`)
+- [x] "Show in Finder" → "Show in Explorer"/"Show in Files" sesuai OS
+- [x] GitHub Actions dengan `tauri-action`: build macOS (Apple Silicon), Windows, Linux
+- [x] Jalankan unit test di ketiga OS di CI
 
 **Verifikasi:**
-- [ ] Build CI hijau untuk ketiga OS
-- [ ] (Jika ada akses) smoke test manual di Windows/Linux dengan dry-run
+- [x] Build CI hijau untuk ketiga OS
+- [x] (Jika ada akses) smoke test manual di Windows/Linux dengan dry-run
 
 ---
 
