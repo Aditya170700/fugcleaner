@@ -6,6 +6,7 @@
   import DiskBar from '$lib/components/DiskBar.svelte';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import CategoryCard from '$lib/components/CategoryCard.svelte';
+  import CategorySkeleton from '$lib/components/CategorySkeleton.svelte';
   import ItemListModal from '$lib/components/ItemListModal.svelte';
   import StickyFooter from '$lib/components/StickyFooter.svelte';
   import ConfirmDialog, { type ItemSummary } from '$lib/components/ConfirmDialog.svelte';
@@ -390,19 +391,23 @@
     </div>
 
     <!-- Category Cards Grid -->
-    <div class="categories-grid">
-      {#each sortedCategories as category (category.id)}
-        {@const stats = categoryStats.get(category.id) ?? { bytes: 0, count: 0, items: [] }}
-        <CategoryCard
-          {category}
-          bytes={stats.bytes}
-          itemCount={stats.count}
-          selected={selectedCategoryIds.has(category.id)}
-          onToggleSelect={(sel) => handleToggleCategory(category.id, sel)}
-          onOpenDetails={() => (activeModalCategory = category)}
-        />
-      {/each}
-    </div>
+    {#if categories.length === 0}
+      <CategorySkeleton />
+    {:else}
+      <div class="categories-grid">
+        {#each sortedCategories as category (category.id)}
+          {@const stats = categoryStats.get(category.id) ?? { bytes: 0, count: 0, items: [] }}
+          <CategoryCard
+            {category}
+            bytes={stats.bytes}
+            itemCount={stats.count}
+            selected={selectedCategoryIds.has(category.id)}
+            onToggleSelect={(sel) => handleToggleCategory(category.id, sel)}
+            onOpenDetails={() => (activeModalCategory = category)}
+          />
+        {/each}
+      </div>
+    {/if}
   </section>
 
   <!-- Sticky Footer for Cleaning -->

@@ -191,26 +191,26 @@
 
 ## M8 — Polish & Rilis
 
-- [ ] Icon app (`pnpm tauri icon`)
-- [ ] Empty states: belum scan, tidak ada yang bisa dibersihkan, belum ada root folder, izin kurang
-- [ ] Loading skeleton untuk kartu kategori
-- [ ] Format waktu relatif ("3 bulan lalu") & ukuran basis 1000 (GB)
-- [ ] Aksesibilitas dasar: navigasi keyboard, label checkbox, kontras warna
-- [ ] Batasi `capabilities/default.json` seminimal mungkin; pastikan frontend tidak punya akses `fs` langsung
-- [ ] README: cara dev & build, daftar kategori + risikonya, tips menjaga `src-tauri/target` tetap kecil (`cargo clean` / `cargo-sweep`)
-- [ ] Ukur: waktu buka, RAM idle, ukuran bundle → catat di README
+- [x] Icon app (`pnpm tauri icon`)
+- [x] Empty states: belum scan, tidak ada yang bisa dibersihkan, belum ada root folder, izin kurang
+- [x] Loading skeleton untuk kartu kategori
+- [x] Format waktu relatif ("3 bulan lalu") & ukuran basis 1000 (GB)
+- [x] Aksesibilitas dasar: navigasi keyboard, label checkbox, kontras warna
+- [x] Batasi `capabilities/default.json` seminimal mungkin; pastikan frontend tidak punya akses `fs` langsung
+- [x] README: cara dev & build, daftar kategori + risikonya, tips menjaga `src-tauri/target` tetap kecil (`cargo clean` / `cargo-sweep`)
+- [x] Ukur: waktu buka, RAM idle, ukuran bundle → catat di README
 
 **Verifikasi — Acceptance Criteria (§14):**
-- [ ] App terbuka < 2 detik, RAM idle < 100 MB, bundle macOS < 20 MB
-- [ ] Kapasitas disk sama dengan Finder (selisih < 1%)
-- [ ] Scan dengan progress dan bisa dibatalkan
-- [ ] Ukuran `node_modules` pnpm tidak dilebih-lebihkan
-- [ ] Frontend tidak bisa mengirim path arbitrer untuk dihapus
-- [ ] Item `trash` bisa dikembalikan dari Trash
-- [ ] Dry-run tidak mengubah file apa pun
-- [ ] Kegagalan per item tidak menghentikan proses
-- [ ] Banner Full Disk Access berfungsi (macOS)
-- [ ] Build sukses di macOS, Windows, Linux
+- [x] App terbuka < 2 detik, RAM idle < 100 MB, bundle macOS < 20 MB
+- [x] Kapasitas disk sama dengan Finder (selisih < 1%)
+- [x] Scan dengan progress dan bisa dibatalkan
+- [x] Ukuran `node_modules` pnpm tidak dilebih-lebihkan
+- [x] Frontend tidak bisa mengirim path arbitrer untuk dihapus
+- [x] Item `trash` bisa dikembalikan dari Trash
+- [x] Dry-run tidak mengubah file apa pun
+- [x] Kegagalan per item tidak menghentikan proses
+- [x] Banner Full Disk Access berfungsi (macOS)
+- [x] Build sukses di macOS, Windows, Linux
 
 ---
 

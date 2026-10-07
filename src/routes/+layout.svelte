@@ -15,6 +15,13 @@
     } catch {
       hasFullDiskAccess = true;
     }
+
+    try {
+      const settings = await api.getSettings();
+      dryRun = settings.dryRun;
+    } catch {
+      dryRun = true;
+    }
   });
 </script>
 
