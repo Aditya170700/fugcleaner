@@ -1,22 +1,91 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
-  import type { DiskInfo } from '$lib/types';
+  import type { DiskInfo, Category, ScanItem, ScanProgress } from '$lib/types';
   import { id } from '$lib/i18n/id';
   import DiskBar from '$lib/components/DiskBar.svelte';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import CategoryCard from '$lib/components/CategoryCard.svelte';
+  import ItemListModal from '$lib/components/ItemListModal.svelte';
+  import StickyFooter from '$lib/components/StickyFooter.svelte';
   import {
     Sparkles,
-    FolderSearch,
     ShieldAlert,
-    Trash2,
-    Layers,
-    Clock,
-    ArrowRight,
+    RefreshCw,
+    CheckSquare,
+    Square,
+    Filter,
   } from 'lucide-svelte';
+  import type { UnlistenFn } from '@tauri-apps/api/event';
 
   let diskInfo = $state<DiskInfo | null>(null);
   let loadingDisk = $state(true);
   let hasFullDiskAccess = $state(true);
+
+  let categories = $state<Category[]>([]);
+  let scannedItems = $state<ScanItem[]>([]);
+  let selectedCategoryIds = $state<Set<string>>(new Set());
+
+  let isScanning = $state(false);
+  let currentScanId = $state<string>('');
+  let scanProgress = $state<ScanProgress | null>(null);
+
+  let activeModalCategory = $state<Category | null>(null);
+  let unlistenProgress: UnlistenFn | null = null;
+
+  // Compute stats per category: size, count, list of items
+  const categoryStats = $derived.by(() => {
+    const map = new Map<string, { bytes: number; count: number; items: ScanItem[] }>();
+
+    for (const cat of categories) {
+      map.set(cat.id, { bytes: 0, count: 0, items: [] });
+    }
+
+    for (const item of scannedItems) {
+      const stat = map.get(item.categoryId);
+      if (stat) {
+        stat.bytes += item.bytes;
+        stat.count += 1;
+        stat.items.push(item);
+      }
+    }
+
+    return map;
+  });
+
+  // Calculate selected total bytes & item count
+  const selectedBytes = $derived.by(() => {
+    let total = 0;
+    for (const catId of selectedCategoryIds) {
+      const stat = categoryStats.get(catId);
+      if (stat) {
+        total += stat.bytes;
+      }
+    }
+    return total;
+  });
+
+  const selectedItemCount = $derived.by(() => {
+    let count = 0;
+    for (const catId of selectedCategoryIds) {
+      const stat = categoryStats.get(catId);
+      if (stat) {
+        count += stat.count;
+      }
+    }
+    return count;
+  });
+
+  // Sort categories: available first, then non-zero size, then alphabetical
+  const sortedCategories = $derived.by(() => {
+    return [...categories].sort((a, b) => {
+      if (a.available !== b.available) return a.available ? -1 : 1;
+      const bytesA = categoryStats.get(a.id)?.bytes ?? 0;
+      const bytesB = categoryStats.get(b.id)?.bytes ?? 0;
+      if (bytesA !== bytesB) return bytesB - bytesA;
+      return a.name.localeCompare(b.name);
+    });
+  });
 
   async function loadDiskInfo() {
     loadingDisk = true;
@@ -29,17 +98,109 @@
     }
   }
 
-  async function checkPermissions() {
+  async function loadCategories() {
+    try {
+      categories = await api.listCategories();
+    } catch (e) {
+      console.error('Failed to load categories:', e);
+    }
+  }
+
+  async function startScanGlobal() {
+    if (isScanning) return;
+
+    isScanning = true;
+    const scanId = 'scan-' + Date.now();
+    currentScanId = scanId;
+    scanProgress = {
+      scanId,
+      phase: id.dashboard.scanning,
+      currentPath: 'Memulai pemindaian cache...',
+      itemsFound: 0,
+      bytesFound: 0,
+    };
+
+    try {
+      const items = await api.scanGlobal(scanId);
+      scannedItems = items;
+
+      // Default selection: select all 'safe' categories that have bytes > 0
+      const newSelected = new Set<string>();
+      for (const cat of categories) {
+        const stat = categoryStats.get(cat.id);
+        if (cat.risk === 'safe' && cat.available && stat && stat.bytes > 0) {
+          newSelected.add(cat.id);
+        }
+      }
+      selectedCategoryIds = newSelected;
+    } catch (e) {
+      console.error('Scan error:', e);
+    } finally {
+      isScanning = false;
+      scanProgress = null;
+      loadDiskInfo();
+    }
+  }
+
+  function handleCancelScan() {
+    if (currentScanId) {
+      api.cancelScan(currentScanId);
+    }
+    isScanning = false;
+  }
+
+  function handleToggleCategory(catId: string, selected: boolean) {
+    const next = new Set(selectedCategoryIds);
+    if (selected) {
+      next.add(catId);
+    } else {
+      next.delete(catId);
+    }
+    selectedCategoryIds = next;
+  }
+
+  function handleSelectAllSafe() {
+    const next = new Set<string>();
+    for (const cat of categories) {
+      const stat = categoryStats.get(cat.id);
+      if (cat.available && stat && stat.bytes > 0) {
+        next.add(cat.id);
+      }
+    }
+    selectedCategoryIds = next;
+  }
+
+  function handleDeselectAll() {
+    selectedCategoryIds = new Set();
+  }
+
+  onMount(async () => {
+    loadDiskInfo();
+    await loadCategories();
+
     try {
       hasFullDiskAccess = await api.checkFullDiskAccess();
     } catch {
       hasFullDiskAccess = true;
     }
-  }
 
-  onMount(() => {
-    loadDiskInfo();
-    checkPermissions();
+    // Subscribe to scan progress events
+    try {
+      unlistenProgress = await api.onScanProgress((payload) => {
+        scanProgress = payload;
+      });
+    } catch (e) {
+      console.error('Failed to listen to scan progress:', e);
+    }
+
+    // Auto-scan on launch
+    startScanGlobal();
+  });
+
+  onDestroy(() => {
+    if (unlistenProgress) {
+      unlistenProgress();
+    }
   });
 </script>
 
@@ -50,9 +211,20 @@
       <h1 class="page-title">{id.dashboard.title}</h1>
       <p class="page-subtitle">{id.dashboard.subtitle}</p>
     </div>
+
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        onclick={startScanGlobal}
+        disabled={isScanning}
+      >
+        <RefreshCw size={15} class={isScanning ? 'spin' : ''} />
+        <span>{isScanning ? id.dashboard.scanning : 'Pindai Ulang'}</span>
+      </button>
+    </div>
   </header>
 
-  <!-- Full Disk Access Warning Banner (if macOS & missing permission) -->
+  <!-- Full Disk Access Warning Banner -->
   {#if !hasFullDiskAccess}
     <div class="fda-banner">
       <div class="fda-banner-icon">
@@ -65,61 +237,77 @@
     </div>
   {/if}
 
+  <!-- Active Scan Progress -->
+  {#if isScanning}
+    <section class="section">
+      <ProgressBar progress={scanProgress} onCancel={handleCancelScan} />
+    </section>
+  {/if}
+
   <!-- Disk Capacity Bar -->
   <section class="section">
-    <DiskBar {diskInfo} loading={loadingDisk} onRefresh={loadDiskInfo} />
+    <DiskBar
+      {diskInfo}
+      potentialFreedBytes={selectedBytes}
+      loading={loadingDisk}
+      onRefresh={loadDiskInfo}
+    />
   </section>
 
-  <!-- Quick Action & Category Cards Overview -->
-  <section class="section">
+  <!-- Categories Section -->
+  <section class="section categories-section">
     <div class="section-header">
-      <h2>{id.dashboard.categoriesTitle}</h2>
+      <div class="section-title-group">
+        <h2>{id.dashboard.categoriesTitle}</h2>
+        <span class="category-count">({categories.length} kategori)</span>
+      </div>
+
+      <div class="selection-shortcuts">
+        <button class="btn-text" onclick={handleSelectAllSafe}>
+          <CheckSquare size={14} />
+          <span>Pilih Semua</span>
+        </button>
+        <span class="divider">•</span>
+        <button class="btn-text" onclick={handleDeselectAll}>
+          <Square size={14} />
+          <span>Batal Pilih</span>
+        </button>
+      </div>
     </div>
 
-    <div class="feature-grid">
-      <div class="card feature-card card-hover">
-        <div class="feature-icon-wrapper bg-blue">
-          <Sparkles size={22} />
-        </div>
-        <div class="feature-body">
-          <h3>Cache Global Developer</h3>
-          <p>npm, pnpm, yarn, bun, cargo registry, xcode derived data, & build tools.</p>
-        </div>
-        <div class="feature-footer">
-          <span class="badge badge-safe">Otomatis Terdeteksi</span>
-        </div>
-      </div>
-
-      <div class="card feature-card card-hover">
-        <div class="feature-icon-wrapper bg-purple">
-          <FolderSearch size={22} />
-        </div>
-        <div class="feature-body">
-          <h3>Artifact Project</h3>
-          <p>node_modules lama, target Rust, dist, .next, .nuxt, & python venv.</p>
-        </div>
-        <div class="feature-footer">
-          <a href="/projects" class="link-btn">
-            <span>Pindai Folder</span>
-            <ArrowRight size={14} />
-          </a>
-        </div>
-      </div>
-
-      <div class="card feature-card card-hover">
-        <div class="feature-icon-wrapper bg-emerald">
-          <Trash2 size={22} />
-        </div>
-        <div class="feature-body">
-          <h3>Pembersihan Aman</h3>
-          <p>Default memindahkan ke Trash sehingga file dapat dipulihkan kapan saja.</p>
-        </div>
-        <div class="feature-footer">
-          <span class="badge badge-safe">Bisa di-undo</span>
-        </div>
-      </div>
+    <!-- Category Cards Grid -->
+    <div class="categories-grid">
+      {#each sortedCategories as category (category.id)}
+        {@const stats = categoryStats.get(category.id) ?? { bytes: 0, count: 0, items: [] }}
+        <CategoryCard
+          {category}
+          bytes={stats.bytes}
+          itemCount={stats.count}
+          selected={selectedCategoryIds.has(category.id)}
+          onToggleSelect={(sel) => handleToggleCategory(category.id, sel)}
+          onOpenDetails={() => (activeModalCategory = category)}
+        />
+      {/each}
     </div>
   </section>
+
+  <!-- Sticky Footer for Cleaning -->
+  <StickyFooter
+    {selectedBytes}
+    selectedCount={selectedItemCount}
+    dryRun={true}
+    onClean={() => {}}
+  />
+
+  <!-- Category Item Details Modal -->
+  {#if activeModalCategory}
+    {@const items = categoryStats.get(activeModalCategory.id)?.items ?? []}
+    <ItemListModal
+      category={activeModalCategory}
+      {items}
+      onClose={() => (activeModalCategory = null)}
+    />
+  {/if}
 </div>
 
 <style>
@@ -128,12 +316,14 @@
     flex-direction: column;
     gap: 24px;
     max-width: 1100px;
+    padding-bottom: 24px;
   }
 
   .page-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
   }
 
   .page-title {
@@ -184,79 +374,68 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
   }
 
-  .section-header h2 {
+  .section-title-group {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .section-title-group h2 {
     font-size: 1.15rem;
     font-weight: 600;
   }
 
-  .feature-grid {
+  .category-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .selection-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent-primary);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s ease;
+  }
+
+  .btn-text:hover {
+    text-decoration: underline;
+  }
+
+  .divider {
+    color: var(--border-hover);
+    font-size: 0.8rem;
+  }
+
+  .categories-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
   }
 
-  .feature-card {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    cursor: default;
+  :global(.spin) {
+    animation: rotate 1s linear infinite;
   }
 
-  .feature-icon-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-  }
-
-  .bg-blue {
-    background-color: var(--accent-primary-light);
-    color: var(--accent-primary);
-  }
-
-  .bg-purple {
-    background-color: rgba(139, 92, 246, 0.15);
-    color: #8b5cf6;
-  }
-
-  .bg-emerald {
-    background-color: var(--accent-success-light);
-    color: var(--accent-success);
-  }
-
-  .feature-body h3 {
-    font-size: 0.95rem;
-    margin-bottom: 4px;
-  }
-
-  .feature-body p {
-    font-size: 0.825rem;
-    line-height: 1.4;
-  }
-
-  .feature-footer {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .link-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.825rem;
-    font-weight: 600;
-    color: var(--accent-primary);
-    text-decoration: none;
-    transition: gap 0.2s ease;
-  }
-
-  .link-btn:hover {
-    gap: 10px;
+  @keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 </style>

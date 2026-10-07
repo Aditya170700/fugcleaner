@@ -50,43 +50,43 @@
 > Kerjakan `safety.rs` **lebih dulu** sebelum scanner apa pun.
 
 ### Safety (§5)
-- [ ] Hard-deny list (§5.3) untuk macOS, Linux, Windows
-- [ ] Fungsi `is_path_allowed(path, allowed_roots)` : canonicalize → cek tidak di deny list → cek prefix root → tolak symlink
-- [ ] Deteksi perpindahan filesystem/volume (bandingkan device ID)
-- [ ] Unit test: deny list, symlink, `../` traversal, path di luar root, home dir, `.git/`
+- [x] Hard-deny list (§5.3) untuk macOS, Linux, Windows
+- [x] Fungsi `is_path_allowed(path, allowed_roots)` : canonicalize → cek tidak di deny list → cek prefix root → tolak symlink
+- [x] Deteksi perpindahan filesystem/volume (bandingkan device ID)
+- [x] Unit test: deny list, symlink, `../` traversal, path di luar root, home dir, `.git/`
 
 ### Definisi kategori (§4a)
-- [ ] Struct `CategoryDef { id, name, description, group, method, risk, paths_by_os, command }`
-- [ ] Isi kategori global untuk **macOS** dulu (Linux & Windows di M7)
-- [ ] Command `list_categories` → set `available` + `unavailableReason` (path tidak ada / CLI tidak terinstal via `which`)
+- [x] Struct `CategoryDef { id, name, description, group, method, risk, paths_by_os, command }`
+- [x] Isi kategori global untuk **macOS** dulu (Linux & Windows di M7)
+- [x] Command `list_categories` → set `available` + `unavailableReason` (path tidak ada / CLI tidak terinstal via `which`)
 
 ### Perhitungan ukuran (§6)
-- [ ] `scanner/size.rs`: ukuran di disk = `blocks() * 512` (Unix), `len()` (Windows)
-- [ ] Dedupe hardlink pakai `HashSet<(dev, ino)>`
-- [ ] Jangan ikuti symlink
-- [ ] Unit test dengan `tempfile`: file biasa, hardlink (dihitung sekali), symlink (tidak diikuti)
+- [x] `scanner/size.rs`: ukuran di disk = `blocks() * 512` (Unix), `len()` (Windows)
+- [x] Dedupe hardlink pakai `HashSet<(dev, ino)>`
+- [x] Jangan ikuti symlink
+- [x] Unit test dengan `tempfile`: file biasa, hardlink (dihitung sekali), symlink (tidak diikuti)
 
 ### Scanner global
-- [ ] `scan_global({ scanId })` di `spawn_blocking`, traversal paralel (`jwalk` + `rayon`)
-- [ ] Simpan hasil scan di **managed state** Rust (`Mutex<HashMap<ItemId, ScanItem + real path>>`)
-- [ ] Event `scan://progress` (throttle maks ~10x/detik)
-- [ ] `cancel_scan` via `Arc<AtomicBool>`
-- [ ] `user_caches`: pecah per sub-folder (per aplikasi)
+- [x] `scan_global({ scanId })` di `spawn_blocking`, traversal paralel (`jwalk` + `rayon`)
+- [x] Simpan hasil scan di **managed state** Rust (`Mutex<HashMap<ItemId, ScanItem + real path>>`)
+- [x] Event `scan://progress` (throttle maks ~10x/detik)
+- [x] `cancel_scan` via `Arc<AtomicBool>`
+- [x] `user_caches`: pecah per sub-folder (per aplikasi)
 
 ### UI Dashboard
-- [ ] Scan otomatis saat app dibuka + tombol "Scan ulang"
-- [ ] **ProgressBar** + tombol batal
-- [ ] Grid **CategoryCard** (ikon, nama, ukuran, jumlah item, badge risk, checkbox); `safe` tercentang default, `caution` tidak
-- [ ] Kategori 0 B dikecilkan/disembunyikan; kategori `available: false` tampil abu-abu dengan alasan
-- [ ] Panel detail **ItemList** per kategori + tombol "Show in Finder" (`open_in_file_manager`)
-- [ ] DiskBar menampilkan segmen "potensi dibersihkan"
-- [ ] Footer sticky: "X GB dipilih" + tombol Clean (masih disabled / belum terhubung)
+- [x] Scan otomatis saat app dibuka + tombol "Scan ulang"
+- [x] **ProgressBar** + tombol batal
+- [x] Grid **CategoryCard** (ikon, nama, ukuran, jumlah item, badge risk, checkbox); `safe` tercentang default, `caution` tidak
+- [x] Kategori 0 B dikecilkan/disembunyikan; kategori `available: false` tampil abu-abu dengan alasan
+- [x] Panel detail **ItemList** per kategori + tombol "Show in Finder" (`open_in_file_manager`)
+- [x] DiskBar menampilkan segmen "potensi dibersihkan"
+- [x] Footer sticky: "X GB dipilih" + tombol Clean (masih disabled / belum terhubung)
 
 **Verifikasi:**
-- [ ] Scan selesai, angka per kategori masuk akal dibanding `du -sh` di terminal
-- [ ] Cancel menghentikan scan dalam < 1 detik
-- [ ] UI tidak freeze selama scan
-- [ ] Semua unit test lulus
+- [x] Scan selesai, angka per kategori masuk akal dibanding `du -sh` di terminal
+- [x] Cancel menghentikan scan dalam < 1 detik
+- [x] UI tidak freeze selama scan
+- [x] Semua unit test lulus
 
 ---
 
