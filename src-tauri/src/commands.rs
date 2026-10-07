@@ -6,6 +6,7 @@ use sysinfo::Disks;
 use tauri::{AppHandle, State};
 
 use crate::categories::{list_available_categories, Category};
+use crate::cleaner::{clean_items_core, CleanResult};
 use crate::error::{AppError, AppResult};
 use crate::scanner::global::scan_global_caches;
 use crate::scanner::projects::{scan_projects_in_roots, ProjectScannerOptions, ScannedProject};
@@ -179,6 +180,44 @@ pub fn cancel_scan(state: State<'_, AppState>, scan_id: String) {
     if let Some(cancel_flag) = active_scans.get(&scan_id) {
         cancel_flag.store(true, Ordering::Relaxed);
     }
+}
+
+#[tauri::command]
+pub async fn clean_items(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+    item_ids: Vec<String>,
+) -> AppResult<CleanResult> {
+    let settings = load_settings();
+    let dry_run = settings.dry_run;
+
+    let scanned_items_map = {
+        let state_items = state.scanned_items.lock().unwrap();
+        state_items.clone()
+    };
+
+    let app_handle_clone = app_handle.clone();
+    let (result, succeeded_ids) = tokio::task::spawn_blocking(move || {
+        clean_items_core(
+            Some(&app_handle_clone),
+            &item_ids,
+            &scanned_items_map,
+            &settings,
+            dry_run,
+        )
+    })
+    .await
+    .map_err(|e| AppError::Custom(format!("Task spawn blocking error: {}", e)))?;
+
+    // Remove succeeded items from state
+    {
+        let mut state_items = state.scanned_items.lock().unwrap();
+        for id in succeeded_ids {
+            state_items.remove(&id);
+        }
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]

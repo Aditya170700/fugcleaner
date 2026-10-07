@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
-  import type { DiskInfo, Category, ScanItem, ScanProgress } from '$lib/types';
+  import type { DiskInfo, Category, ScanItem, ScanProgress, CleanProgress, CleanResult, Settings } from '$lib/types';
   import { id } from '$lib/i18n/id';
   import DiskBar from '$lib/components/DiskBar.svelte';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import CategoryCard from '$lib/components/CategoryCard.svelte';
   import ItemListModal from '$lib/components/ItemListModal.svelte';
   import StickyFooter from '$lib/components/StickyFooter.svelte';
+  import ConfirmDialog, { type ItemSummary } from '$lib/components/ConfirmDialog.svelte';
+  import CleanProgressModal from '$lib/components/CleanProgressModal.svelte';
+  import CleanResultModal from '$lib/components/CleanResultModal.svelte';
   import {
     Sparkles,
     ShieldAlert,
@@ -21,6 +24,7 @@
   let diskInfo = $state<DiskInfo | null>(null);
   let loadingDisk = $state(true);
   let hasFullDiskAccess = $state(true);
+  let settings = $state<Settings | null>(null);
 
   let categories = $state<Category[]>([]);
   let scannedItems = $state<ScanItem[]>([]);
@@ -30,8 +34,16 @@
   let currentScanId = $state<string>('');
   let scanProgress = $state<ScanProgress | null>(null);
 
+  // Cleaner state
+  let isCleaning = $state(false);
+  let cleanProgress = $state<CleanProgress | null>(null);
+  let cleanResult = $state<CleanResult | null>(null);
+  let showConfirmModal = $state(false);
+  let showResultModal = $state(false);
+
   let activeModalCategory = $state<Category | null>(null);
   let unlistenProgress: UnlistenFn | null = null;
+  let unlistenCleanProgress: UnlistenFn | null = null;
 
   // Compute stats per category: size, count, list of items
   const categoryStats = $derived.by(() => {
@@ -76,6 +88,41 @@
     return count;
   });
 
+  // Summary list for confirmation dialog
+  const selectedItemsSummary = $derived.by(() => {
+    const list: ItemSummary[] = [];
+    for (const cat of categories) {
+      if (selectedCategoryIds.has(cat.id)) {
+        const stat = categoryStats.get(cat.id);
+        if (stat && stat.count > 0 && stat.bytes > 0) {
+          list.push({
+            id: cat.id,
+            name: cat.name,
+            count: stat.count,
+            bytes: stat.bytes,
+            method: cat.method,
+            risk: cat.risk,
+          });
+        }
+      }
+    }
+    return list;
+  });
+
+  // Selected item IDs to clean
+  const selectedItemIdsToClean = $derived.by(() => {
+    const ids: string[] = [];
+    for (const catId of selectedCategoryIds) {
+      const stat = categoryStats.get(catId);
+      if (stat) {
+        for (const item of stat.items) {
+          ids.push(item.id);
+        }
+      }
+    }
+    return ids;
+  });
+
   // Sort categories: available first, then non-zero size, then alphabetical
   const sortedCategories = $derived.by(() => {
     return [...categories].sort((a, b) => {
@@ -106,8 +153,16 @@
     }
   }
 
+  async function loadSettings() {
+    try {
+      settings = await api.getSettings();
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  }
+
   async function startScanGlobal() {
-    if (isScanning) return;
+    if (isScanning || isCleaning) return;
 
     isScanning = true;
     const scanId = 'scan-' + Date.now();
@@ -174,8 +229,52 @@
     selectedCategoryIds = new Set();
   }
 
+  function handleOpenCleanConfirm() {
+    if (selectedItemIdsToClean.length === 0) return;
+    showConfirmModal = true;
+  }
+
+  async function handleExecuteClean() {
+    showConfirmModal = false;
+    isCleaning = true;
+    cleanProgress = {
+      done: 0,
+      total: selectedItemIdsToClean.length,
+      currentPath: 'Mempersiapkan pembersihan...',
+    };
+
+    try {
+      const result = await api.cleanItems(selectedItemIdsToClean);
+      cleanResult = result;
+      showResultModal = true;
+
+      // Remove cleaned items from local state
+      const succeededSet = new Set(result.succeeded);
+      scannedItems = scannedItems.filter((item) => !succeededSet.has(item.id));
+
+      // Deselect categories that are now empty
+      const nextSelected = new Set(selectedCategoryIds);
+      for (const catId of selectedCategoryIds) {
+        const remaining = scannedItems.filter((i) => i.categoryId === catId);
+        if (remaining.length === 0) {
+          nextSelected.delete(catId);
+        }
+      }
+      selectedCategoryIds = nextSelected;
+
+      // Refresh disk info
+      await loadDiskInfo();
+    } catch (e) {
+      console.error('Clean execution failed:', e);
+    } finally {
+      isCleaning = false;
+      cleanProgress = null;
+    }
+  }
+
   onMount(async () => {
     loadDiskInfo();
+    await loadSettings();
     await loadCategories();
 
     try {
@@ -193,6 +292,15 @@
       console.error('Failed to listen to scan progress:', e);
     }
 
+    // Subscribe to clean progress events
+    try {
+      unlistenCleanProgress = await api.onCleanProgress((payload) => {
+        cleanProgress = payload;
+      });
+    } catch (e) {
+      console.error('Failed to listen to clean progress:', e);
+    }
+
     // Auto-scan on launch
     startScanGlobal();
   });
@@ -200,6 +308,9 @@
   onDestroy(() => {
     if (unlistenProgress) {
       unlistenProgress();
+    }
+    if (unlistenCleanProgress) {
+      unlistenCleanProgress();
     }
   });
 </script>
@@ -216,7 +327,7 @@
       <button
         class="btn btn-primary"
         onclick={startScanGlobal}
-        disabled={isScanning}
+        disabled={isScanning || isCleaning}
       >
         <RefreshCw size={15} class={isScanning ? 'spin' : ''} />
         <span>{isScanning ? id.dashboard.scanning : 'Pindai Ulang'}</span>
@@ -295,8 +406,8 @@
   <StickyFooter
     {selectedBytes}
     selectedCount={selectedItemCount}
-    dryRun={true}
-    onClean={() => {}}
+    dryRun={settings?.dryRun ?? true}
+    onClean={handleOpenCleanConfirm}
   />
 
   <!-- Category Item Details Modal -->
@@ -308,6 +419,30 @@
       onClose={() => (activeModalCategory = null)}
     />
   {/if}
+
+  <!-- Confirmation Modal -->
+  <ConfirmDialog
+    open={showConfirmModal}
+    itemsSummary={selectedItemsSummary}
+    totalBytes={selectedBytes}
+    dryRun={settings?.dryRun ?? true}
+    onConfirm={handleExecuteClean}
+    onClose={() => (showConfirmModal = false)}
+  />
+
+  <!-- Clean Progress Modal -->
+  <CleanProgressModal
+    open={isCleaning}
+    progress={cleanProgress}
+    dryRun={settings?.dryRun ?? true}
+  />
+
+  <!-- Clean Result Modal -->
+  <CleanResultModal
+    open={showResultModal}
+    result={cleanResult}
+    onClose={() => (showResultModal = false)}
+  />
 </div>
 
 <style>

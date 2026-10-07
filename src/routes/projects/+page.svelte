@@ -2,11 +2,14 @@
   import { onMount, onDestroy } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { api } from '$lib/api';
-  import type { ScannedProject, ProjectArtifact, Settings, ScanProgress } from '$lib/types';
+  import type { ScannedProject, ProjectArtifact, Settings, ScanProgress, CleanProgress, CleanResult } from '$lib/types';
   import { formatBytes, formatRelativeTime } from '$lib/utils/format';
   import { id } from '$lib/i18n/id';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import StickyFooter from '$lib/components/StickyFooter.svelte';
+  import ConfirmDialog, { type ItemSummary } from '$lib/components/ConfirmDialog.svelte';
+  import CleanProgressModal from '$lib/components/CleanProgressModal.svelte';
+  import CleanResultModal from '$lib/components/CleanResultModal.svelte';
   import {
     FolderGit2,
     Plus,
@@ -32,6 +35,13 @@
   let currentScanId = $state<string>('');
   let scanProgress = $state<ScanProgress | null>(null);
 
+  // Cleaner state
+  let isCleaning = $state(false);
+  let cleanProgress = $state<CleanProgress | null>(null);
+  let cleanResult = $state<CleanResult | null>(null);
+  let showConfirmModal = $state(false);
+  let showResultModal = $state(false);
+
   let staleOnly = $state(false);
   let selectedArtifactIds = $state<Set<string>>(new Set());
   let expandedProjectIds = $state<Set<string>>(new Set());
@@ -41,6 +51,7 @@
   let sortAsc = $state(false);
 
   let unlistenProgress: UnlistenFn | null = null;
+  let unlistenCleanProgress: UnlistenFn | null = null;
 
   // Filter and sort projects
   const filteredProjects = $derived.by(() => {
@@ -77,6 +88,26 @@
     }
 
     return { bytes, count };
+  });
+
+  // Selected artifacts summary for confirmation dialog
+  const selectedArtifactsSummary = $derived.by(() => {
+    const list: ItemSummary[] = [];
+    for (const proj of projects) {
+      for (const art of proj.artifacts) {
+        if (selectedArtifactIds.has(art.id)) {
+          list.push({
+            id: art.id,
+            name: `${proj.name} / ${art.name}`,
+            count: 1,
+            bytes: art.bytes,
+            method: art.method,
+            risk: art.risk,
+          });
+        }
+      }
+    }
+    return list;
   });
 
   async function loadSettingsAndScan() {
@@ -247,6 +278,54 @@
     }
   }
 
+  function handleOpenCleanConfirm() {
+    if (selectedArtifactIds.size === 0) return;
+    showConfirmModal = true;
+  }
+
+  async function handleExecuteClean() {
+    showConfirmModal = false;
+    isCleaning = true;
+    cleanProgress = {
+      done: 0,
+      total: selectedArtifactIds.size,
+      currentPath: 'Mempersiapkan pembersihan...',
+    };
+
+    try {
+      const itemIds = Array.from(selectedArtifactIds);
+      const result = await api.cleanItems(itemIds);
+      cleanResult = result;
+      showResultModal = true;
+
+      // Remove cleaned artifacts from projects in state
+      const succeededSet = new Set(result.succeeded);
+      projects = projects
+        .map((proj) => {
+          const remainingArtifacts = proj.artifacts.filter((a) => !succeededSet.has(a.id));
+          const newTotal = remainingArtifacts.reduce((acc, a) => acc + a.bytes, 0);
+          return {
+            ...proj,
+            artifacts: remainingArtifacts,
+            totalBytes: newTotal,
+          };
+        })
+        .filter((proj) => proj.artifacts.length > 0);
+
+      // Clear selected IDs for succeeded items
+      const nextSelected = new Set(selectedArtifactIds);
+      for (const id of result.succeeded) {
+        nextSelected.delete(id);
+      }
+      selectedArtifactIds = nextSelected;
+    } catch (e) {
+      console.error('Clean execution failed:', e);
+    } finally {
+      isCleaning = false;
+      cleanProgress = null;
+    }
+  }
+
   onMount(async () => {
     try {
       unlistenProgress = await api.onScanProgress((payload) => {
@@ -256,12 +335,23 @@
       console.error('Failed to subscribe scan progress:', e);
     }
 
+    try {
+      unlistenCleanProgress = await api.onCleanProgress((payload) => {
+        cleanProgress = payload;
+      });
+    } catch (e) {
+      console.error('Failed to subscribe clean progress:', e);
+    }
+
     loadSettingsAndScan();
   });
 
   onDestroy(() => {
     if (unlistenProgress) {
       unlistenProgress();
+    }
+    if (unlistenCleanProgress) {
+      unlistenCleanProgress();
     }
   });
 </script>
@@ -543,10 +633,35 @@
     <StickyFooter
       selectedBytes={selectedStats.bytes}
       selectedCount={selectedStats.count}
-      dryRun={true}
-      onClean={() => {}}
+      dryRun={settings?.dryRun ?? true}
+      onClean={handleOpenCleanConfirm}
     />
   {/if}
+
+  <!-- Confirmation Modal -->
+  <ConfirmDialog
+    open={showConfirmModal}
+    title="Konfirmasi Pembersihan Artifact Project"
+    itemsSummary={selectedArtifactsSummary}
+    totalBytes={selectedStats.bytes}
+    dryRun={settings?.dryRun ?? true}
+    onConfirm={handleExecuteClean}
+    onClose={() => (showConfirmModal = false)}
+  />
+
+  <!-- Clean Progress Modal -->
+  <CleanProgressModal
+    open={isCleaning}
+    progress={cleanProgress}
+    dryRun={settings?.dryRun ?? true}
+  />
+
+  <!-- Clean Result Modal -->
+  <CleanResultModal
+    open={showResultModal}
+    result={cleanResult}
+    onClose={() => (showResultModal = false)}
+  />
 </div>
 
 <style>

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
 
-use crate::categories::{expand_tilde, get_os_categories, CategoryGroup};
+use crate::categories::{expand_tilde, get_os_categories, CategoryGroup, Method};
 use crate::error::AppResult;
 use crate::scanner::size::DiskSizeCalculator;
 use crate::scanner::{ScanItem, ScanProgress};
@@ -15,6 +15,8 @@ pub struct ScannedItemInternal {
     pub item: ScanItem,
     pub real_path: PathBuf,
     pub allowed_root: Option<PathBuf>,
+    pub method: Method,
+    pub command: Option<String>,
 }
 
 /// Scan all global caches according to OS category definitions
@@ -106,6 +108,8 @@ pub fn scan_global_caches<R: Runtime>(
                             item: scan_item,
                             real_path: path.clone(),
                             allowed_root: Some(base_dir.clone()),
+                            method: cat.method,
+                            command: cat.command.map(|s| s.to_string()),
                         });
 
                         // Throttled progress emit
@@ -167,6 +171,8 @@ pub fn scan_global_caches<R: Runtime>(
                         item: scan_item,
                         real_path: target_path.clone(),
                         allowed_root: parent_root,
+                        method: cat.method,
+                        command: cat.command.map(|s| s.to_string()),
                     });
 
                     if last_progress_emit.elapsed() >= Duration::from_millis(100) {
@@ -201,6 +207,8 @@ pub fn scan_global_caches<R: Runtime>(
                     item: scan_item,
                     real_path: PathBuf::new(),
                     allowed_root: None,
+                    method: cat.method,
+                    command: cat.command.map(|s| s.to_string()),
                 });
             }
         }

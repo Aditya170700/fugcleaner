@@ -738,6 +738,8 @@ fn add_artifact(
         item: scan_item,
         real_path: path.to_path_buf(),
         allowed_root: Some(root.to_path_buf()),
+        method,
+        command: None,
     });
 }
 

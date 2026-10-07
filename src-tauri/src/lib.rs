@@ -43,6 +43,7 @@ pub fn run() {
             commands::scan_global,
             commands::scan_projects,
             commands::cancel_scan,
+            commands::clean_items,
             commands::open_in_file_manager,
         ])
         .run(tauri::generate_context!())

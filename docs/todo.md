@@ -114,22 +114,22 @@
 
 ## M4 — Cleaner (paling kritis)
 
-- [ ] `clean_items({ itemIds })`: **hanya menerima ID**, ambil path dari state Rust hasil scan
-- [ ] Validasi ulang setiap item tepat sebelum hapus (`safety::is_path_allowed`, masih ada, bukan symlink)
-- [ ] Method `trash` → crate `trash`; method `delete` → `remove_dir_all` (setelah validasi)
-- [ ] Gagal per item → lanjut ke item berikutnya, catat di `failed`
-- [ ] **Dry-run**: aktif default saat `cfg!(debug_assertions)`, juga bisa di-toggle di Settings; hanya log, tidak menyentuh file
-- [ ] Event `clean://progress`
-- [ ] Hapus item yang sudah dibersihkan dari state, lalu refresh `get_disk_info`
-- [ ] **ConfirmDialog**: ringkasan per kategori, total ukuran, method (Trash vs permanen), peringatan jelas untuk `delete`
-- [ ] Ringkasan hasil: "Berhasil membebaskan X GB" + daftar item gagal
-- [ ] Badge "DRY RUN" yang jelas di UI saat mode aktif
-- [ ] Unit test cleaner **hanya di temp dir**: ID tidak dikenal ditolak, path di deny list ditolak, symlink tidak diikuti, kegagalan parsial ditangani
+- [x] `clean_items({ itemIds })`: **hanya menerima ID**, ambil path dari state Rust hasil scan
+- [x] Validasi ulang setiap item tepat sebelum hapus (`safety::is_path_allowed`, masih ada, bukan symlink)
+- [x] Method `trash` → crate `trash`; method `delete` → `remove_dir_all` (setelah validasi)
+- [x] Gagal per item → lanjut ke item berikutnya, catat di `failed`
+- [x] **Dry-run**: aktif default saat `cfg!(debug_assertions)`, juga bisa di-toggle di Settings; hanya log, tidak menyentuh file
+- [x] Event `clean://progress`
+- [x] Hapus item yang sudah dibersihkan dari state, lalu refresh `get_disk_info`
+- [x] **ConfirmDialog**: ringkasan per kategori, total ukuran, method (Trash vs permanen), peringatan jelas untuk `delete`
+- [x] Ringkasan hasil: "Berhasil membebaskan X GB" + daftar item gagal
+- [x] Badge "DRY RUN" yang jelas di UI saat mode aktif
+- [x] Unit test cleaner **hanya di temp dir**: ID tidak dikenal ditolak, path di deny list ditolak, symlink tidak diikuti, kegagalan parsial ditangani
 
 **Verifikasi:**
-- [ ] Dry-run di data nyata: tidak ada file yang berubah (cek ukuran folder sebelum/sesudah)
-- [ ] Non-dry-run **hanya** di folder fixture: item `trash` muncul di Trash dan bisa dikembalikan
-- [ ] Coba kirim ID palsu / path dari devtools → ditolak
+- [x] Dry-run di data nyata: tidak ada file yang berubah (cek ukuran folder sebelum/sesudah)
+- [x] Non-dry-run **hanya** di folder fixture: item `trash` muncul di Trash dan bisa dikembalikan
+- [x] Coba kirim ID palsu / path dari devtools → ditolak
 
 ---
 
