@@ -6,7 +6,6 @@
     FolderGit2,
     History,
     Settings as SettingsIcon,
-    Flame,
     ShieldAlert,
   } from 'lucide-svelte';
 
@@ -28,7 +27,7 @@
 <aside class="sidebar">
   <div class="sidebar-header">
     <div class="logo-wrapper">
-      <Flame size={20} class="logo-icon" />
+      <img src="/logo.svg" alt="Fug Cleaner" class="logo-img" />
     </div>
     <div class="app-info">
       <h1 class="app-title">{id.app.name}</h1>
@@ -95,10 +94,15 @@
     justify-content: center;
     width: 34px;
     height: 34px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-    color: #ffffff;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .app-info {
